@@ -64,6 +64,9 @@ h1 {
 main {
   flex: 1;
   background-color: #0f1012;
+  background-image: url('./src/industri.jpg');
+  background-size: cover;
+  background-position: center;
   /* Darker machine interior */
   position: relative;
   display: flex;
@@ -185,6 +188,7 @@ canvas {
   font-size: 0.8rem;
   color: #ccc;
   pointer-events: none;
+  transition: opacity 0.3s;
   /* Let clicks pass through if needed */
 }
 

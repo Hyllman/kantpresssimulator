@@ -2,9 +2,8 @@ export function createRenderer(canvas) {
     const ctx = canvas.getContext('2d');
 
     function render(state) {
-        // Clear
-        ctx.fillStyle = '#0f1012';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Clear (transparent to show CSS background)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const w = canvas.width;
         const h = canvas.height;

@@ -2,7 +2,7 @@ import { createRenderer } from './src/renderer.js';
 import { createPhysics } from './src/physics.js';
 
 // Game Constants
-const TARGET_ANGLES = [40, 85, 90, 100, 135, 160, 170];
+const TARGET_ANGLES = [46, 85, 90, 100, 135, 160, 170];
 const SCORE_PER_EXACT_HIT = 100;
 const ANGLE_TOLERANCE = 2;
 const MAX_ROUNDS = 10;
@@ -275,6 +275,8 @@ function startBending() {
 
     startSound();
 
+    document.getElementById('mini-highscore').style.opacity = '0';
+
     state.gamePhase = 'BENDING';
     state.isBending = true;
     state.lastTime = performance.now();
@@ -288,6 +290,8 @@ function stopBending() {
     if (state.gamePhase !== 'BENDING') return;
 
     stopSound();
+
+    document.getElementById('mini-highscore').style.opacity = '1';
 
     state.gamePhase = 'STOPPED';
     state.isBending = false;
