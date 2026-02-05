@@ -140,7 +140,9 @@ canvas {
 }
 
 .machine-btn {
-  padding: 15px 30px;
+  padding: 15px 10px;
+  min-width: 200px;
+  /* Fixed width to prevent jumping */
   font-family: var(--font-display);
   font-size: 1.2rem;
   border: none;
@@ -288,8 +290,7 @@ input[type="text"]:focus {
 }
 
 .highscore-list li:nth-child(1) {
-  color: #gold;
-  /* fallback */
+  /* color: gold; */
   color: #ffd700;
   font-weight: bold;
 }

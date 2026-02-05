@@ -2,7 +2,7 @@ import { createRenderer } from './src/renderer.js';
 import { createPhysics } from './src/physics.js';
 
 // Game Constants
-const TARGET_ANGLES = [90, 100, 135, 170];
+const TARGET_ANGLES = [40, 85, 90, 100, 135, 160, 170];
 const SCORE_PER_EXACT_HIT = 100;
 const ANGLE_TOLERANCE = 2;
 const MAX_ROUNDS = 10;

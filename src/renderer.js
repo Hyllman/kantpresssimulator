@@ -11,30 +11,43 @@ export function createRenderer(canvas) {
         const cx = w / 2;
         const cy = h / 2;
 
-        // Coordinate system for the machine
-        // Sheet sits on Die at roughly cy + 100
-        const dieY = cy + 100;
+        // Coordinate system
+        const dieTopY = cy + 50;
 
-        // Draw Machine Background (Frame)
+        // Draw Frame
         drawFrame(ctx, w, h);
 
-        // Draw Die (V-block) - Static
-        drawDie(ctx, cx, dieY);
+        // Calculate Punch Depth based on Angle
+        // 180 deg = Flat (Punch at die top level approx)
+        // Lower angle = Deeper punch
+        // Simple linear interpolation for visual effect
+        // 180 -> 0 depth
+        // 30 -> Max depth (e.g. 50px)
+        const bendProgress = (180 - state.currentAngle) / (180 - 30);
+        const maxDepth = 60;
+        const currentDepth = bendProgress * maxDepth;
 
-        // Draw Sheet Metal - Dynamic based on state.currentAngle
-        drawSheet(ctx, cx, dieY, state.currentAngle);
+        // Punch Tip Y
+        // Start slightly above dieTopY when flat to allow sheet thickness
+        const sheetThickness = 6;
+        const punchTipY = dieTopY - sheetThickness / 2 + currentDepth;
 
-        // Draw Ram (Punch) - Moves based on angle?
-        // For visual simplicity, we can just animate the sheet bending. 
-        // But adding the punch moving down adds realism.
-        // 180 deg = Punch high. 90 deg = Punch low.
-        drawPunch(ctx, cx, dieY, state.currentAngle);
+        // Draw Die (Static)
+        drawDie(ctx, cx, dieTopY);
+
+        // Draw Sheet (Moves with Punch)
+        // Vertex is exactly at punchTipY + visual offset if needed.
+        // Actually, the punch pushes the INNER radius. The OUTER radius is what we see mostly.
+        // Let's say the sheet vertex (midpoint) is at punchTipY.
+        drawSheet(ctx, cx, punchTipY, state.currentAngle, sheetThickness);
+
+        // Draw Punch (Tip follows calculations)
+        drawPunch(ctx, cx, punchTipY);
     }
 
     function drawFrame(ctx, w, h) {
         ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        // Background grid or lines
+        ctx.lineWidth = 1;
         ctx.beginPath();
         for (let x = 0; x < w; x += 50) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
         for (let y = 0; y < h; y += 50) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
@@ -42,119 +55,77 @@ export function createRenderer(canvas) {
     }
 
     function drawDie(ctx, x, y) {
+        ctx.fillStyle = '#222';
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        // V shape
+        const vWidth = 120;
+        const vDepth = 60;
+
+        ctx.moveTo(x - 150, y + 150); // Base Left
+        ctx.lineTo(x + 150, y + 150); // Base Right
+        ctx.lineTo(x + 150, y);       // Top Right
+        ctx.lineTo(x + vWidth / 2, y);  // Shoulder Right
+        ctx.lineTo(x, y + vDepth);    // V Bottom
+        ctx.lineTo(x - vWidth / 2, y);  // Shoulder Left
+        ctx.lineTo(x - 150, y);       // Top Left
+        ctx.closePath();
+
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    function drawPunch(ctx, x, tipY) {
         ctx.fillStyle = '#444';
         ctx.strokeStyle = '#666';
-        ctx.lineWidth = 4;
-
-        // V-die shape
-        ctx.beginPath();
-        ctx.moveTo(x - 100, y + 50); // Bottom Left base
-        ctx.lineTo(x + 100, y + 50); // Bottom Right base
-        ctx.lineTo(x + 100, y);      // Top Right
-        ctx.lineTo(x + 20, y);       // V start right
-        ctx.lineTo(x, y + 30);       // V bottom
-        ctx.lineTo(x - 20, y);       // V start left
-        ctx.lineTo(x - 100, y);      // Top Left
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-    }
-
-    function drawPunch(ctx, x, dieY, angle) {
-        // Calculate Punch Y based on angle
-        // 180deg (flat) -> Punch is touching top of sheet (approx dieY - thickness)
-        // 90deg -> Punch is deep in V (dieY + 28 approx)
-
-        // Mapping: 180 -> 0 offset, 90 -> 30 offset (deep in V)
-        // This is approximate visual logic
-        const progress = (180 - angle) / 90; // 0 to 1
-        const depth = progress * 30;
-
-        const punchY = dieY - 5 + depth; // -5 to account for sheet thickness resting on top
-
-        ctx.fillStyle = '#555';
-        ctx.strokeStyle = '#777';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
 
         ctx.beginPath();
-        // Punch tip is at (x, punchY)
-        // Triangle shape pointing down
-        ctx.moveTo(x, punchY);
-        ctx.lineTo(x + 15, punchY - 100);
-        ctx.lineTo(x + 60, punchY - 100); // Shaft right
-        ctx.lineTo(x + 60, punchY - 300); // Shaft up
-        ctx.lineTo(x - 60, punchY - 300); // Shaft up
-        ctx.lineTo(x - 60, punchY - 100); // Shaft left
-        ctx.lineTo(x - 15, punchY - 100);
+        ctx.moveTo(x, tipY); // Tip
+        ctx.lineTo(x + 15, tipY - 100);
+        ctx.lineTo(x + 60, tipY - 100);
+        ctx.lineTo(x + 60, tipY - 400); // Shaft goes up
+        ctx.lineTo(x - 60, tipY - 400);
+        ctx.lineTo(x - 60, tipY - 100);
+        ctx.lineTo(x - 15, tipY - 100);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Accent stripe
+        // Stripe
         ctx.fillStyle = '#ff9800';
-        ctx.fillRect(x - 60, punchY - 280, 120, 10);
+        ctx.fillRect(x - 60, tipY - 380, 120, 10);
     }
 
-    function drawSheet(ctx, x, y, angle) {
-        ctx.strokeStyle = '#ccc'; // Metal color
-        ctx.lineWidth = 6;
+    function drawSheet(ctx, x, vertexY, angle, thickness) {
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth = thickness;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // Sheet bends around center (x, y)
-        // Angle is total included angle.
-        // Left leg angle = 180 - (180 - angle)/2 ? No.
-        // If angle is 180, left is 180, right is 0?
-        // Let's say vector math.
-        // Center is pivot.
+        const legLength = 180;
+        const rad = (Math.PI / 180) * (180 - angle) / 2;
 
-        // Visual pivot adjustment: visually the sheet rests on the die shoulders when flat, 
-        // and slides down into V when bending.
-        // For simple simulation, pivoting around (x,y) (tip of V) is easiest, 
-        // but physically inaccurate (sheet lifts off shoulders).
-        // Let's pivot around tip of V (x, y+30 in die drawing) -> NO.
-        // Pivot around the contact point with Punch.
-        // Punch tip is at (x, punchY). 
+        // Visual correction: When fully flat (180), vertexY is somewhat "down" because of our logic.
+        // But physically, if punch is up, sheet is flat on Die.
+        // Our new logic moves punch DOWN, so sheet V moves DOWN. 
+        // We just need to calculate the wings so they look anchored or sliding.
+        // For simplicity, just drawing wings extending from vertexY is fine, 
+        // as long as vertexY matches punch tip.
 
-        // Let's stick to simple pivot at (x, y) for now, maybe offset up slightly.
-        const pivotY = y; // Top of die surface
+        // Right wing (Angle 0 is right, subtract rad to rotate UP/CCW)
+        const rX = x + Math.cos(-rad) * legLength;
+        const rY = vertexY + Math.sin(-rad) * legLength;
 
-        // Half angle calculation
-        // 180 -> wings are horizontal.
-        // 90 -> wings are 45 deg up from horizontal? No, 45 deg down?
-        // In a V-die press brake, the sheet moves UP as it bends if it's large, 
-        // but usually we represent the cross section.
-
-        // V-die:
-        //      \  |  /
-        //       \ | /
-        //        \|/
-
-        // If I look from side:
-        // Flat: _____________
-        // Bend: \           /  <-- NO, press brake bends UPWARDS usually? 
-        // Actually, the punch comes DOWN. The sheet ends go UP.
-        // So:
-        //      /   \
-        //     /     \
-        //    /___V___\
-
-        const bendRad = (180 - angle) / 2 * (Math.PI / 180);
-        const legLength = 150;
-
-        // Right Wing
-        // Angle 0 is right. -bendRad means rotate UP.
-        const rX = x + Math.cos(-bendRad) * legLength;
-        const rY = pivotY + Math.sin(-bendRad) * legLength;
-
-        // Left Wing
-        // Angle 180 is left. +bendRad means rotate UP.
-        const lX = x + Math.cos(Math.PI + bendRad) * legLength;
-        const lY = pivotY + Math.sin(Math.PI + bendRad) * legLength;
+        // Left wing (Angle 180 is left, add rad to rotate UP/CW)
+        const lX = x + Math.cos(Math.PI + rad) * legLength;
+        const lY = vertexY + Math.sin(Math.PI + rad) * legLength;
 
         ctx.beginPath();
         ctx.moveTo(lX, lY);
-        ctx.lineTo(x, pivotY); // Center
+        ctx.lineTo(x, vertexY);
         ctx.lineTo(rX, rY);
         ctx.stroke();
     }
