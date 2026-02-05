@@ -33,47 +33,24 @@ const btnNext = document.getElementById('btn-next');
 const renderer = createRenderer(canvas);
 const physics = createPhysics();
 
-// Audio Context
-let audioCtx;
-let oscillator;
-let gainNode;
+// Audio
+import soundUrl from './src/sound.mp3';
+const machineAudio = new Audio(soundUrl);
+machineAudio.loop = true;
 
 function initAudio() {
-    if (!audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AudioContext();
-    }
+    // Preload potentially?
+    // Modern browsers prevent autoplay but interaction is required for startBending anyway.
 }
 
 function startSound() {
-    if (!audioCtx) initAudio();
-    if (oscillator) return;
-
-    oscillator = audioCtx.createOscillator();
-    gainNode = audioCtx.createGain();
-
-    oscillator.type = 'sawtooth';
-    oscillator.frequency.setValueAtTime(50, audioCtx.currentTime); // Low hum
-
-    // Fade in
-    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.1);
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    oscillator.start();
+    machineAudio.currentTime = 0;
+    machineAudio.play().catch(e => console.warn("Audio play failed:", e));
 }
 
 function stopSound() {
-    if (oscillator) {
-        const now = audioCtx.currentTime;
-        gainNode.gain.cancelScheduledValues(now);
-        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-        gainNode.gain.linearRampToValueAtTime(0, now + 0.1);
-
-        oscillator.stop(now + 0.1);
-        oscillator = null;
-    }
+    machineAudio.pause();
+    machineAudio.currentTime = 0;
 }
 
 function initGame() {
@@ -94,9 +71,6 @@ function initGame() {
     // Game Loop
     lastTime = performance.now();
     requestAnimationFrame(gameLoop);
-
-    // Call initAudio on user interaction
-    document.body.addEventListener('click', initAudio, { once: true });
 }
 
 function resizeCanvas() {
@@ -272,7 +246,7 @@ async function loadMiniScoreboard() {
             let highScores = await response.json();
             // Take top 5
             list.innerHTML = '';
-            highScores.slice(0, 5).forEach((entry, index) => {
+            highScores.slice(0, 10).forEach((entry, index) => {
                 const cleanName = entry.name.split('#')[0];
                 const li = document.createElement('li');
                 li.innerHTML = `<span>${index + 1}.</span> <span>${cleanName}</span> <span>${entry.score}</span>`;
@@ -297,9 +271,7 @@ function startBending() {
     if (state.gamePhase !== 'IDLE') return;
 
     // Init audio on first user gesture if needed
-    if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
+    // (Audio object handles this naturally on play() after user interaction)
 
     startSound();
 
