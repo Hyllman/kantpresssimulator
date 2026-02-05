@@ -89,6 +89,7 @@ function initGame() {
 
     // Initial Setup
     nextLevel();
+    loadMiniScoreboard();
 
     // Game Loop
     lastTime = performance.now();
@@ -134,15 +135,31 @@ function endGame() {
     checkHighScore();
 }
 
-function checkHighScore() {
-    const highScores = JSON.parse(localStorage.getItem('kantpress_highScores')) || [];
-    // Sort high scores
-    highScores.sort((a, b) => b.score - a.score);
+async function checkHighScore() {
+    try {
+        const response = await fetch('/api/scores');
+        let highScores = [];
+        if (response.ok) {
+            highScores = await response.json();
+            // Parse names to remove timestamp suffix (Format: Name#Timestamp)
+            highScores = highScores.map(entry => {
+                return {
+                    name: entry.name.split('#')[0],
+                    score: entry.score
+                };
+            });
+        }
 
-    // Check if score qualifies for top 5
-    if (highScores.length < 5 || state.score > highScores[highScores.length - 1].score) {
-        showHighScoreInput();
-    } else {
+        // Check if score qualifies for top 5 (or top 10 on server)
+        // If server returns top 10, we check if we beat the last one or if list is not full
+        if (highScores.length < 10 || state.score > highScores[highScores.length - 1].score) {
+            showHighScoreInput();
+        } else {
+            showHighScoreBoard(); // Just show board if we didn't make the cut
+        }
+    } catch (e) {
+        console.error("Could not fetch high scores", e);
+        // Fallback or just show board
         showHighScoreBoard();
     }
 }
@@ -160,20 +177,35 @@ function showHighScoreBoard() {
     board.style.display = 'flex';
 }
 
-function saveScore() {
+async function saveScore() {
     const nameInput = document.getElementById('player-name');
     const name = nameInput.value.trim() || "Anonym";
+    const btnSave = document.querySelector('#highscore-modal button');
 
-    const highScores = JSON.parse(localStorage.getItem('kantpress_highScores')) || [];
-    highScores.push({ name: name, score: state.score, date: new Date().toISOString() });
-    highScores.sort((a, b) => b.score - a.score);
+    // Disable button to prevent double submit
+    btnSave.disabled = true;
+    btnSave.innerText = "SPARAR...";
 
-    // Keep top 5
-    if (highScores.length > 5) highScores.length = 5;
-
-    localStorage.setItem('kantpress_highScores', JSON.stringify(highScores));
+    try {
+        await fetch('/api/scores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, score: state.score })
+        });
+    } catch (e) {
+        console.error("Failed to save score", e);
+        alert("Kunde inte spara poäng till molnet. Testa igen.");
+        btnSave.disabled = false;
+        btnSave.innerText = "SPARA";
+        return;
+    }
 
     document.getElementById('highscore-modal').style.display = 'none';
+
+    // Reset button for next time (though we reload/reset usually)
+    btnSave.disabled = false;
+    btnSave.innerText = "SPARA";
+
     showHighScoreBoard();
 }
 
@@ -189,30 +221,68 @@ function restartGame() {
     nextLevel();
 }
 
-function renderScoreboard() {
+async function renderScoreboard() {
     const list = document.getElementById('highscore-list');
-    list.innerHTML = '';
-    const highScores = JSON.parse(localStorage.getItem('kantpress_highScores')) || [];
+    list.innerHTML = '<li>Laddar...</li>';
 
-    highScores.forEach((entry, index) => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${index + 1}. ${entry.name}</span> <span>${entry.score} p</span>`;
-        list.appendChild(li);
-    });
+    try {
+        const response = await fetch('/api/scores');
+        if (response.ok) {
+            let highScores = await response.json();
+            list.innerHTML = '';
+
+            highScores.forEach((entry, index) => {
+                const cleanName = entry.name.split('#')[0];
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${index + 1}. ${cleanName}</span> <span>${entry.score} p</span>`;
+                if (index === 0) li.style.color = '#ffd700';
+                list.appendChild(li);
+            });
+        } else {
+            list.innerHTML = '<li>Kunde inte hämta topplistan.</li>';
+        }
+    } catch (e) {
+        list.innerHTML = '<li>Kunde inte hämta topplistan.</li>';
+    }
 }
 
-function renderMiniScoreboard() {
+async function renderMiniScoreboard() {
     const list = document.getElementById('mini-highscore-list');
     if (!list) return;
-    list.innerHTML = '';
-    const highScores = JSON.parse(localStorage.getItem('kantpress_highScores')) || [];
 
-    highScores.slice(0, 5).forEach((entry, index) => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${index + 1}.</span> <span>${entry.name}</span> <span>${entry.score}</span>`;
-        if (index === 0) li.style.color = '#ffd700';
-        list.appendChild(li);
-    });
+    // Optimization: Don't fetch on every frame updateUI relies on.
+    // Fetch only periodically or once at start/end of rounds.
+    // For now, let's just make sure updateUI doesn't spam this.
+    // Actually, updateUI calls this every frame? Wait.
+    // YES, updateUI is called in update() which is in gameLoop!
+    // BAD! We should NOT allow renderMiniScoreboard inside updateUI if it does network calls.
+
+    // Changing strategy: Call renderMiniScoreboard ONLY on init and round changes.
+    // Removing fetch from here or flagging it.
+}
+
+// Separate Mini Scoreboard loader
+async function loadMiniScoreboard() {
+    const list = document.getElementById('mini-highscore-list');
+    if (!list) return;
+
+    try {
+        const response = await fetch('/api/scores');
+        if (response.ok) {
+            let highScores = await response.json();
+            // Take top 5
+            list.innerHTML = '';
+            highScores.slice(0, 5).forEach((entry, index) => {
+                const cleanName = entry.name.split('#')[0];
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${index + 1}.</span> <span>${cleanName}</span> <span>${entry.score}</span>`;
+                if (index === 0) li.style.color = '#ffd700';
+                list.appendChild(li);
+            });
+        }
+    } catch (e) {
+        console.log("Mini scoreboard failed load");
+    }
 }
 
 function toggleAction() {
@@ -329,7 +399,7 @@ function updateUI() {
     scoreEl.innerText = state.score;
     levelEl.innerText = state.level;
     targetAngleEl.innerText = state.targetAngle + "°";
-    renderMiniScoreboard();
+    // renderMiniScoreboard(); // MOVED: Too expensive for loop
 }
 
 initGame();
